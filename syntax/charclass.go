@@ -11,7 +11,7 @@ import (
 
 // CharSet combines start-end rune ranges and unicode categories representing a set of characters
 type CharSet struct {
-	ranges     []singleRange
+	Ranges     []SingleRange
 	categories []category
 	sub        *CharSet //optional subtractor
 	negate     bool
@@ -23,9 +23,9 @@ type category struct {
 	cat    string
 }
 
-type singleRange struct {
-	first rune
-	last  rune
+type SingleRange struct {
+	First rune
+	Last  rune
 }
 
 const (
@@ -106,14 +106,14 @@ func getCharSetFromOldString(setText []rune, negate bool) func() *CharSet {
 		}
 
 		if l%2 == 0 {
-			c.ranges = make([]singleRange, l/2)
+			c.Ranges = make([]SingleRange, l/2)
 		} else {
-			c.ranges = make([]singleRange, l/2+1)
+			c.Ranges = make([]SingleRange, l/2+1)
 		}
 
 		first := true
 		if fillFirst {
-			c.ranges[0] = singleRange{first: 0}
+			c.Ranges[0] = SingleRange{First: 0}
 			first = false
 		}
 
@@ -121,16 +121,16 @@ func getCharSetFromOldString(setText []rune, negate bool) func() *CharSet {
 		for _, r := range setText {
 			if first {
 				// lower bound in a new range
-				c.ranges[i] = singleRange{first: r}
+				c.Ranges[i] = SingleRange{First: r}
 				first = false
 			} else {
-				c.ranges[i].last = r - 1
+				c.Ranges[i].Last = r - 1
 				i++
 				first = true
 			}
 		}
 		if !first {
-			c.ranges[i].last = utf8.MaxRune
+			c.Ranges[i].Last = utf8.MaxRune
 		}
 	}
 
@@ -147,7 +147,7 @@ func (c CharSet) Copy() CharSet {
 		negate:   c.negate,
 	}
 
-	ret.ranges = append(ret.ranges, c.ranges...)
+	ret.Ranges = append(ret.Ranges, c.Ranges...)
 	ret.categories = append(ret.categories, c.categories...)
 
 	if c.sub != nil {
@@ -167,15 +167,15 @@ func (c CharSet) String() string {
 		buf.WriteRune('^')
 	}
 
-	for _, r := range c.ranges {
+	for _, r := range c.Ranges {
 
-		buf.WriteString(CharDescription(r.first))
-		if r.first != r.last {
-			if r.last-r.first != 1 {
+		buf.WriteString(CharDescription(r.First))
+		if r.First != r.Last {
+			if r.Last-r.First != 1 {
 				//groups that are 1 char apart skip the dash
 				buf.WriteRune('-')
 			}
-			buf.WriteString(CharDescription(r.last))
+			buf.WriteString(CharDescription(r.Last))
 		}
 	}
 
@@ -201,11 +201,11 @@ func (c CharSet) mapHashFill(buf *bytes.Buffer) {
 		buf.WriteByte(1)
 	}
 
-	binary.Write(buf, binary.LittleEndian, len(c.ranges))
+	binary.Write(buf, binary.LittleEndian, len(c.Ranges))
 	binary.Write(buf, binary.LittleEndian, len(c.categories))
-	for _, r := range c.ranges {
-		buf.WriteRune(r.first)
-		buf.WriteRune(r.last)
+	for _, r := range c.Ranges {
+		buf.WriteRune(r.First)
+		buf.WriteRune(r.Last)
 	}
 	for _, ct := range c.categories {
 		buf.WriteString(ct.cat)
@@ -228,11 +228,11 @@ func (c CharSet) CharIn(ch rune) bool {
 	// in s && !s.subtracted
 
 	//check ranges
-	for _, r := range c.ranges {
-		if ch < r.first {
+	for _, r := range c.Ranges {
+		if ch < r.First {
 			continue
 		}
-		if ch <= r.last {
+		if ch <= r.Last {
 			val = true
 			break
 		}
@@ -352,21 +352,21 @@ func IsECMAWordChar(r rune) bool {
 // SingletonChar will return the char from the first range without validation.
 // It assumes you have checked for IsSingleton or IsSingletonInverse and will panic given bad input
 func (c CharSet) SingletonChar() rune {
-	return c.ranges[0].first
+	return c.Ranges[0].First
 }
 
 func (c CharSet) IsSingleton() bool {
 	return !c.negate && //negated is multiple chars
-		len(c.categories) == 0 && len(c.ranges) == 1 && // multiple ranges and unicode classes represent multiple chars
+		len(c.categories) == 0 && len(c.Ranges) == 1 && // multiple ranges and unicode classes represent multiple chars
 		c.sub == nil && // subtraction means we've got multiple chars
-		c.ranges[0].first == c.ranges[0].last // first and last equal means we're just 1 char
+		c.Ranges[0].First == c.Ranges[0].Last // first and last equal means we're just 1 char
 }
 
 func (c CharSet) IsSingletonInverse() bool {
 	return c.negate && //same as above, but requires negated
-		len(c.categories) == 0 && len(c.ranges) == 1 && // multiple ranges and unicode classes represent multiple chars
+		len(c.categories) == 0 && len(c.Ranges) == 1 && // multiple ranges and unicode classes represent multiple chars
 		c.sub == nil && // subtraction means we've got multiple chars
-		c.ranges[0].first == c.ranges[0].last // first and last equal means we're just 1 char
+		c.Ranges[0].First == c.Ranges[0].Last // first and last equal means we're just 1 char
 }
 
 func (c CharSet) IsMergeable() bool {
@@ -382,15 +382,15 @@ func (c CharSet) HasSubtraction() bool {
 }
 
 func (c CharSet) IsEmpty() bool {
-	return len(c.ranges) == 0 && len(c.categories) == 0 && c.sub == nil
+	return len(c.Ranges) == 0 && len(c.categories) == 0 && c.sub == nil
 }
 
 func (c *CharSet) addDigit(ecma, negate bool, pattern string) {
 	if ecma {
 		if negate {
-			c.addRanges(NotECMADigitClass().ranges)
+			c.addRanges(NotECMADigitClass().Ranges)
 		} else {
-			c.addRanges(ECMADigitClass().ranges)
+			c.addRanges(ECMADigitClass().Ranges)
 		}
 	} else {
 		c.addCategories(category{cat: "Nd", negate: negate})
@@ -404,9 +404,9 @@ func (c *CharSet) addChar(ch rune) {
 func (c *CharSet) addSpace(ecma, negate bool) {
 	if ecma {
 		if negate {
-			c.addRanges(NotECMASpaceClass().ranges)
+			c.addRanges(NotECMASpaceClass().Ranges)
 		} else {
-			c.addRanges(ECMASpaceClass().ranges)
+			c.addRanges(ECMASpaceClass().Ranges)
 		}
 	} else {
 		c.addCategories(category{cat: spaceCategoryText, negate: negate})
@@ -416,9 +416,9 @@ func (c *CharSet) addSpace(ecma, negate bool) {
 func (c *CharSet) addWord(ecma, negate bool) {
 	if ecma {
 		if negate {
-			c.addRanges(NotECMAWordClass().ranges)
+			c.addRanges(NotECMAWordClass().Ranges)
 		} else {
-			c.addRanges(ECMAWordClass().ranges)
+			c.addRanges(ECMAWordClass().Ranges)
 		}
 	} else {
 		c.addCategories(category{cat: wordCategoryText, negate: negate})
@@ -435,7 +435,7 @@ func (c *CharSet) addSet(set CharSet) {
 		return
 	}
 	// just append here to prevent double-canon
-	c.ranges = append(c.ranges, set.ranges...)
+	c.Ranges = append(c.Ranges, set.Ranges...)
 	c.addCategories(set.categories...)
 	c.canonicalize()
 }
@@ -443,7 +443,7 @@ func (c *CharSet) addSet(set CharSet) {
 func (c *CharSet) makeAnything() {
 	c.anything = true
 	c.categories = []category{}
-	c.ranges = AnyClass().ranges
+	c.Ranges = AnyClass().Ranges
 }
 
 func (c *CharSet) addCategories(cats ...category) {
@@ -476,16 +476,16 @@ func (c *CharSet) addCategories(cats ...category) {
 }
 
 // Merges new ranges to our own
-func (c *CharSet) addRanges(ranges []singleRange) {
+func (c *CharSet) addRanges(ranges []SingleRange) {
 	if c.anything {
 		return
 	}
-	c.ranges = append(c.ranges, ranges...)
+	c.Ranges = append(c.Ranges, ranges...)
 	c.canonicalize()
 }
 
 // Merges everything but the new ranges into our own
-func (c *CharSet) addNegativeRanges(ranges []singleRange) {
+func (c *CharSet) addNegativeRanges(ranges []SingleRange) {
 	if c.anything {
 		return
 	}
@@ -494,14 +494,14 @@ func (c *CharSet) addNegativeRanges(ranges []singleRange) {
 
 	// convert incoming ranges into opposites, assume they are in order
 	for _, r := range ranges {
-		if hi < r.first {
-			c.ranges = append(c.ranges, singleRange{hi, r.first - 1})
+		if hi < r.First {
+			c.Ranges = append(c.Ranges, SingleRange{hi, r.First - 1})
 		}
-		hi = r.last + 1
+		hi = r.Last + 1
 	}
 
 	if hi < utf8.MaxRune {
-		c.ranges = append(c.ranges, singleRange{hi, utf8.MaxRune})
+		c.Ranges = append(c.Ranges, SingleRange{hi, utf8.MaxRune})
 	}
 
 	c.canonicalize()
@@ -534,42 +534,42 @@ func (c *CharSet) addSubtraction(sub *CharSet) {
 }
 
 func (c *CharSet) addRange(chMin, chMax rune) {
-	c.ranges = append(c.ranges, singleRange{first: chMin, last: chMax})
+	c.Ranges = append(c.Ranges, SingleRange{First: chMin, Last: chMax})
 	c.canonicalize()
 }
 
 func (c *CharSet) addNamedASCII(name string, negate bool) bool {
-	var rs []singleRange
+	var rs []SingleRange
 
 	switch name {
 	case "alnum":
-		rs = []singleRange{singleRange{'0', '9'}, singleRange{'A', 'Z'}, singleRange{'a', 'z'}}
+		rs = []SingleRange{SingleRange{'0', '9'}, SingleRange{'A', 'Z'}, SingleRange{'a', 'z'}}
 	case "alpha":
-		rs = []singleRange{singleRange{'A', 'Z'}, singleRange{'a', 'z'}}
+		rs = []SingleRange{SingleRange{'A', 'Z'}, SingleRange{'a', 'z'}}
 	case "ascii":
-		rs = []singleRange{singleRange{0, 0x7f}}
+		rs = []SingleRange{SingleRange{0, 0x7f}}
 	case "blank":
-		rs = []singleRange{singleRange{'\t', '\t'}, singleRange{' ', ' '}}
+		rs = []SingleRange{SingleRange{'\t', '\t'}, SingleRange{' ', ' '}}
 	case "cntrl":
-		rs = []singleRange{singleRange{0, 0x1f}, singleRange{0x7f, 0x7f}}
+		rs = []SingleRange{SingleRange{0, 0x1f}, SingleRange{0x7f, 0x7f}}
 	case "digit":
 		c.addDigit(false, negate, "")
 	case "graph":
-		rs = []singleRange{singleRange{'!', '~'}}
+		rs = []SingleRange{SingleRange{'!', '~'}}
 	case "lower":
-		rs = []singleRange{singleRange{'a', 'z'}}
+		rs = []SingleRange{SingleRange{'a', 'z'}}
 	case "print":
-		rs = []singleRange{singleRange{' ', '~'}}
+		rs = []SingleRange{SingleRange{' ', '~'}}
 	case "punct": //[!-/:-@[-`{-~]
-		rs = []singleRange{singleRange{'!', '/'}, singleRange{':', '@'}, singleRange{'[', '`'}, singleRange{'{', '~'}}
+		rs = []SingleRange{SingleRange{'!', '/'}, SingleRange{':', '@'}, SingleRange{'[', '`'}, SingleRange{'{', '~'}}
 	case "space":
 		c.addSpace(true, negate)
 	case "upper":
-		rs = []singleRange{singleRange{'A', 'Z'}}
+		rs = []SingleRange{SingleRange{'A', 'Z'}}
 	case "word":
 		c.addWord(true, negate)
 	case "xdigit":
-		rs = []singleRange{singleRange{'0', '9'}, singleRange{'A', 'F'}, singleRange{'a', 'f'}}
+		rs = []SingleRange{SingleRange{'0', '9'}, SingleRange{'A', 'F'}, SingleRange{'a', 'f'}}
 	default:
 		return false
 	}
@@ -585,10 +585,10 @@ func (c *CharSet) addNamedASCII(name string, negate bool) bool {
 	return true
 }
 
-type singleRangeSorter []singleRange
+type singleRangeSorter []SingleRange
 
 func (p singleRangeSorter) Len() int           { return len(p) }
-func (p singleRangeSorter) Less(i, j int) bool { return p[i].first < p[j].first }
+func (p singleRangeSorter) Less(i, j int) bool { return p[i].First < p[j].First }
 func (p singleRangeSorter) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
 // Logic to reduce a character class to a unique, sorted form.
@@ -600,29 +600,29 @@ func (c *CharSet) canonicalize() {
 	// Find and eliminate overlapping or abutting ranges
 	//
 
-	if len(c.ranges) > 1 {
-		sort.Sort(singleRangeSorter(c.ranges))
+	if len(c.Ranges) > 1 {
+		sort.Sort(singleRangeSorter(c.Ranges))
 
 		done := false
 
 		for i, j = 1, 0; ; i++ {
-			for last = c.ranges[j].last; ; i++ {
-				if i == len(c.ranges) || last == utf8.MaxRune {
+			for last = c.Ranges[j].Last; ; i++ {
+				if i == len(c.Ranges) || last == utf8.MaxRune {
 					done = true
 					break
 				}
 
-				CurrentRange := c.ranges[i]
-				if CurrentRange.first > last+1 {
+				CurrentRange := c.Ranges[i]
+				if CurrentRange.First > last+1 {
 					break
 				}
 
-				if last < CurrentRange.last {
-					last = CurrentRange.last
+				if last < CurrentRange.Last {
+					last = CurrentRange.Last
 				}
 			}
 
-			c.ranges[j] = singleRange{first: c.ranges[j].first, last: last}
+			c.Ranges[j] = SingleRange{First: c.Ranges[j].First, Last: last}
 
 			j++
 
@@ -631,11 +631,11 @@ func (c *CharSet) canonicalize() {
 			}
 
 			if j < i {
-				c.ranges[j] = c.ranges[i]
+				c.Ranges[j] = c.Ranges[i]
 			}
 		}
 
-		c.ranges = append(c.ranges[:j], c.ranges[len(c.ranges):]...)
+		c.Ranges = append(c.Ranges[:j], c.Ranges[len(c.Ranges):]...)
 	}
 }
 
@@ -645,19 +645,19 @@ func (c *CharSet) addLowercase() {
 	if c.anything {
 		return
 	}
-	toAdd := []singleRange{}
-	for i := 0; i < len(c.ranges); i++ {
-		r := c.ranges[i]
-		if r.first == r.last {
-			lower := unicode.ToLower(r.first)
-			c.ranges[i] = singleRange{first: lower, last: lower}
+	toAdd := []SingleRange{}
+	for i := 0; i < len(c.Ranges); i++ {
+		r := c.Ranges[i]
+		if r.First == r.Last {
+			lower := unicode.ToLower(r.First)
+			c.Ranges[i] = SingleRange{First: lower, Last: lower}
 		} else {
 			toAdd = append(toAdd, r)
 		}
 	}
 
 	for _, r := range toAdd {
-		c.addLowercaseRange(r.first, r.last)
+		c.addLowercaseRange(r.First, r.Last)
 	}
 	c.canonicalize()
 }
